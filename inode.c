@@ -56,6 +56,11 @@ struct inode* create_file( struct inode* parent, char* name, int size_in_bytes )
 struct inode* create_dir( struct inode* parent, char* name )
 {
     /* to be implemented */
+
+    
+    
+    
+
     return NULL;
 }
 
@@ -91,174 +96,94 @@ int delete_dir( struct inode* parent, struct inode* node )
     return 0;
 }
 
+struct inode *makeInode(FILE *mft){
+    struct inode *node = malloc(sizeof(struct inode));
+    
+    if (!node){
+        printf("ikke nok minne tilgjengelig");
+        return NULL;
+    }
+    
+    fread(&node->id, sizeof(int), 1, mft);
+
+    int name_length = 0;
+    fread(&name_length, sizeof(int), 1, mft);
+
+    node->name = malloc(name_length+1);
+
+    if (node->name == NULL){
+        printf("ikke nok minne");
+        return NULL;
+    }
+
+    fread(node->name, name_length, 1, mft);
+    fread(&node->is_directory, 1, 1, mft);
+    
+    //om mappe
+    if (node->is_directory==1){
+        
+        fread(&node->num_children, sizeof(int), 1,mft);
+        node->children = malloc(sizeof(struct inode) * node->num_children+1);
+
+        //les child id-er 
+        int *childrenIDs = (int*)malloc((node->num_children * sizeof(int)*2));
+
+        if (childrenIDs == NULL) {
+            perror("Feil ved allokering av minne for childrenIDs");
+            exit(EXIT_FAILURE);
+        }           
+        //lagrer ider 
+        for (int i = 0; i < node->num_children; i++) {
+            fread(&childrenIDs[i], sizeof(int)*2, 1, mft);
+        }
+
+        //derretter leser vi alle barn inn, går ut ifra at alle er i rekkefølge etter forelder
+        for (int i = 0; i<node->num_children;i++){
+            
+            struct inode* child = malloc(sizeof(struct inode));
+            child = makeInode(mft);
+            //loop igennom child id og se om node er child
+            
+            for (int j = 0; j < node->num_children;j++){
+                if (child->id == childrenIDs[j]){
+                    //printf(" child id %d ", child->id);
+                    if (node->children[j] == NULL){
+                        node->children[j] = child;
+                       
+                    }
+                }
+            }
+        }
+    }
+    //om inode er fil
+    else if(node->is_directory==0){
+        fread(&node->filesize, sizeof(int), 1, mft);
+        fread(&node->num_blocks, sizeof(int),1,mft);
+        //alloker minne til blocks
+        node->blocks = malloc(node->num_blocks*(sizeof(int)*2));
+        for (int i = 0; i<node->num_blocks;i++){
+            fread(&node->blocks[i], sizeof(int)*2, 1 , mft);
+        }
+    }
+    return node;
+}
+
+//lager node object og lagrer i en array på posisjonen til Inode sin ID, dereretter chaines de sammen med pointere
 struct inode* load_inodes( char* master_file_table )
 {  
     /* to be implemented */
     FILE *mst_file;
-    mst_file = fopen(master_file_table, "r");
 
-    if (!mst_file){
-        perror("error opening file");
+    mst_file = fopen(master_file_table, "rb");
+
+//dersom minne er fullt
+    if (mst_file==NULL){
+        printf("ikke nok minne");
         return NULL;
-    };
-    
-    //create root node
-    struct inode *root = (struct inode*)malloc(sizeof(struct inode));
-
-    if (!root){//not enough space
-        perror("not enough space for root node ");
-        fclose(mst_file);
-        return NULL;
-    };
-
-    //first read the entire file and store all in an array
-    fseek(mst_file, 0, SEEK_END); // Sett filposisjon til slutten av filen
-    long file_size = ftell(mst_file); // Finn filstørrelsen
-    fseek(mst_file, 0, SEEK_SET); // Sett filposisjon tilbake til starten
-
-    char *data = malloc(file_size + 4); // Alloker minne for filinnhold
-    fread(data, 2,file_size, mst_file);
-
-    data[file_size] = '\0'; // Nullterminer data-arrayen
-    //fill the rote node with the first data
-    //printf("%02X", data[8]); //dette printer en hex 0x00
-    //ser ut som at data[] chars automatisk blir convertert til ascii eller int når jeg setter de til det
-    //printf("%s", &data[8]); 
-
-    int current = 0 ;//to keep track of where in the file we shal read
-
-    //id er første 4 bites
-    //while (current<file_size){
-
-        //lager rotnode 
-        int bitesToRead = 4;
-        int id =0;
-        for (current; current<bitesToRead;current++){
-            root->id += data[current];
-        }
-
-        //lengde av navn er 4 bites
-        bitesToRead+=4;
-        int nameLength =0;
-        for (current; current<bitesToRead;current++){
-            nameLength+=data[current];
-        }
-        root->name = malloc(nameLength);
-
-        //navn er 2 byte
-        bitesToRead+= nameLength;
-        printf("%d", nameLength);
-        char name[nameLength];
-      
-        for (current; current<bitesToRead;current++){
-            if (name==NULL){
-                strcpy(name,&data[current]); //dersom ingen navn
-            }
-            else{
-                strcat(name, &data[current]); //concatiner med navn
-            }
-        }
-        root->name = name;
-         
-        //dir er altid en byte
-        root->is_directory = data[current];
-        current+=1;
-
-        //num children er alltid 4 byte
-        bitesToRead+=4;
-        for (current; current<bitesToRead;current++){
-            root->num_children+=data[current];
-        }
-
-        //alloker minne til children pointers
-        root->children = malloc(root->num_children * sizeof(struct inode));
-        
-   // }
-   //leser resten av inodene
-        struct inode *parent = root;
-
-    while (current<file_size){
-
-
-        //lager nyInode 
-        struct inode *node = (struct inode*)malloc(sizeof(struct inode));
-
-        int bitesToRead = 4;
-        int id =0;
-        for (current; current<bitesToRead;current++){
-            node->id += data[current];
-        }
-
-        //lengde av navn er 4 bites
-        bitesToRead+=4;
-        int nameLength =0;
-        for (current; current<bitesToRead;current++){
-            nameLength+=data[current];
-        }
-        node->name = malloc(nameLength);
-
-        //navnlengde er 2 byte
-        bitesToRead+= nameLength;
-        char name[nameLength];
-      
-        for (current; current<bitesToRead;current++){
-            if (name==NULL){
-                strcpy(name,&data[current]); //dersom ingen navn
-            }
-            else{
-                strcat(name, &data[current]); //concatiner med navn
-            }
-        }
-        node->name = name;
-         
-        //dir er altid en byte
-        node->is_directory = data[current];
-        current+=1;
-
-        //en if block for fil og en for mappe
-
-        //LAGER MAPPE
-        if(node->is_directory==1){
-             //num children er alltid 4 byte
-            bitesToRead+=4;
-            for (current; current<bitesToRead;current++){
-                node->num_children+=data[current]; //beregner antall children
-            }
-
-            //alloker minne til children pointers
-            node->children = malloc(root->num_children * sizeof(struct inode)); //alokerer children array
-        }
-
-        //LAGER FIL
-        if(node->is_directory==0){
-            //data[blocknummer]
-            //CURRENT+=1;
-            
-            //leser filesize
-            int bytesize = 4;
-            for (current; current<bytesize;current++){
-                node->filesize+=data[current]; 
-            }
-            
-
-
-
-
-
-
-            //node->blocks = malloc(node->num_blocks * sizeof(filesize));
-
-        }
-
-
     }
-
-    //printf("%c", data[8]);
     
-    //printf("%d",root->id );
+    struct inode *root = makeInode(mst_file);
     fclose(mst_file);
-    
-    free(data);
 
     return root;
 }
