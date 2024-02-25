@@ -66,7 +66,25 @@ struct inode* create_dir( struct inode* parent, char* name )
 
 struct inode* find_inode_by_name( struct inode* parent, char* name )
 {
-    /* to be implemented */
+    //bruker rekursjon
+    // Sjekker om parent er noden vi leter etter, dette er base casen vår 
+    if (strcmp(parent->name, name) == 0){
+        return parent;
+    }
+    // Sjekk om noden er en mappe
+    if (parent->is_directory == 0){
+        return NULL;
+    }
+    // Sjekk alle barna rekursivt for om noen er noden vi leter etter
+    for (int i = 0; i < parent->num_children; i++){
+        struct inode* found_node = find_inode_by_name(parent->children[i], name);
+
+        // Hvis noden ble funnet i et av barna, returner den
+        if (found_node != NULL){
+            return found_node;
+        }
+    }
+    // Hvis ingen match ble funnet i barna, returner NULL
     return NULL;
 }
 
