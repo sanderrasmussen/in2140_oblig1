@@ -42,29 +42,154 @@ static int next_inode_id( )
     return retval;
 }
 
-struct inode* create_file( struct inode* parent, char* name, int size_in_bytes )
+// ---YUAN SIN KODE START-----  
+// hjelpemetode
+// hjelpemetode til create_file og create_dir
+void add_child_to_dir(struct inode *parent, struct inode *child)
 {
+    struct inode **new_children = (struct inode **)realloc(parent->children, sizeof(struct inode *) * (parent->num_children + 1));
+    if (new_children == NULL)
+    {
 
+        printf("add to parent realloc feil!");
+        return;
+    }
 
+    new_children[parent->num_children] = child;
+    parent->children = new_children;
+    parent->num_children++;
+}
 
-
-    /*alocere og lage array som den fyller */
+struct inode *create_file(struct inode *parent, char *name, int size_in_bytes)
+{
     /* to be implemented */
+
+    // If there is a file or directory with the same name there already,return NULL
+    if (find_inode_by_name(parent, name) != NULL)
+    {
+        return NULL;
+    }
+
+    // allocate memory space to file_inode
+    struct inode *file_inode = (struct inode *)malloc(sizeof(struct inode));
+    if (file_inode == NULL)
+    {
+        printf("file_inode malloc feil!");
+        return NULL;
+    }
+    // init Directory
+    file_inode->id = next_inode_id(); // get new inode ID
+    file_inode->name = strdup(name);
+    if (file_inode->name == NULL)
+    {
+        printf("name i file_inode malloc feil!");
+        free(file_inode);
+        return NULL;
+    }
+
+    file_inode->is_directory = 0; // is file type
+    file_inode->num_children = 0;
+    file_inode->children = NULL;
+    file_inode->filesize = size_in_bytes;
+    file_inode->num_blocks = blocks_needed(size_in_bytes);
+    //  Allocate blocks on simulated disk
+    file_inode->blocks = (size_t *)malloc(sizeof(size_t) * file_inode->num_blocks);
+    // cheak: if memory allocation failed
+    if (file_inode->blocks == NULL)
+    {
+        printf("blocks i file_inode malloc feil!");
+        free(file_inode->name);
+        free(file_inode);
+        return NULL;
+    }
+
+    for (int i = 0; i < file_inode->num_blocks; i++)
+    {
+        int block = allocate_block();
+        if (block == -1)
+        {
+            // Allocation failed, release allocated blocks and return NULL
+            for (int j = 0; j < i; j++)
+            {
+                printf("blocks: $d i file_inode malloc feil!", i);
+                free_block(file_inode->blocks[j]); // array's value is Int (block num)
+            }
+            free(file_inode->name);
+            free(file_inode->blocks);
+            free(file_inode);
+            return NULL;
+        }
+        file_inode->blocks[i] = block;
+    }
+
+    if (parent != NULL)
+    {
+        add_child_to_dir(parent, file_inode);
+    }
+    return file_inode;
+}
+
+struct inode *create_dir(struct inode *parent, char *name)
+{
+    /* to be implemented */
+
+    // If there is a file or directory with the same name there already, return NULL
+    if (find_inode_by_name(parent, name) != NULL)
+    {
+        printf("found samme navn i en mappe");
+        return NULL;
+    }
+    // creat a diractory, allocate memory space to dir_inode
+    struct inode *dir_inode = (struct inode *)malloc(sizeof(struct inode));
+    if (dir_inode == NULL)
+    {
+        printf("dir_inode malloc feil!");
+        return NULL;
+    }
+
+    dir_inode->id = next_inode_id();
+    dir_inode->name = strdup(name);
+    if (dir_inode->name == NULL)
+    {
+        printf("name i dir_inode malloc feil!");
+        free(dir_inode);
+        return NULL;
+    }
+
+    dir_inode->is_directory = 1;
+    dir_inode->num_children = 0;
+    dir_inode->children = NULL;
+    dir_inode->filesize = 0;
+    dir_inode->num_blocks = 0;
+    dir_inode->blocks = malloc(0); // her kan vi bruke "NULL"
+
+    if (parent != NULL)
+    {
+        add_child_to_dir(parent, dir_inode);
+    }
+    return dir_inode;
+}
+
+struct inode *find_inode_by_name(struct inode *parent, char *name)
+{
+    /* to be implemented */
+    // checks all inodes that are referenced directly from the parent inode
+    if (parent == NULL)
+    {
+        return NULL;
+    }
+    for (int i = 0; i < parent->num_children; i++)
+    {
+        if (strcmp(parent->children[i]->name, name) == 1) // true
+        {
+            return parent->children[i];
+        }
+    }
     return NULL;
 }
 
-struct inode* create_dir( struct inode* parent, char* name )
-{
-    /* to be implemented */
 
-    
-    
-    
-
-    return NULL;
-}
-
-struct inode* find_inode_by_name( struct inode* parent, char* name )
+struct inode* find_inode_by_namee( struct inode* parent, char* name )
 {
     //bruker rekursjon
     // Sjekker om parent er noden vi leter etter, dette er base casen vår 
@@ -165,13 +290,15 @@ struct inode *makeInode(FILE *mft){
             for (int j = 0; j < node->num_children;j++){
                 if (child->id == childrenIDs[j]){
                     //printf(" child id %d ", child->id);
-                    if (node->children[j] == NULL){
+                   
                         node->children[j] = child;
                        
-                    }
+                    
                 }
             }
         }
+        free(childrenIDs);
+        childrenIDs=NULL;
     }
     //om inode er fil
     else if(node->is_directory==0){
@@ -202,7 +329,7 @@ struct inode* load_inodes( char* master_file_table )
     
     struct inode *root = makeInode(mst_file);
     fclose(mst_file);
-
+   
     return root;
 }
 
