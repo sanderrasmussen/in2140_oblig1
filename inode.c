@@ -178,40 +178,24 @@ struct inode *find_inode_by_name(struct inode *parent, char *name)
     {
         return NULL;
     }
-    for (int i = 0; i < parent->num_children; i++)
-    {
-        if (strcmp(parent->children[i]->name, name) == 1) // true
-        {
-            return parent->children[i];
-        }
-    }
-    return NULL;
-}
-
-
-struct inode* find_inode_by_namee( struct inode* parent, char* name )
-{
-    //bruker rekursjon
-    // Sjekker om parent er noden vi leter etter, dette er base casen vår 
-    if (strcmp(parent->name, name) == 0){
-        return parent;
-    }
-    // Sjekk om noden er en mappe
     if (parent->is_directory == 0){
         return NULL;
     }
-    // Sjekk alle barna rekursivt for om noen er noden vi leter etter
-    for (int i = 0; i < parent->num_children; i++){
-        struct inode* found_node = find_inode_by_name(parent->children[i], name);
-
-        // Hvis noden ble funnet i et av barna, returner den
-        if (found_node != NULL){
-            return found_node;
+    for (int i = 0; i < parent->num_children; i++)
+    {
+        struct inode *child = parent->children[i];
+        if (strcmp(child->name, name) == 0) // true
+        {
+            if (parent->children[i]!=NULL){
+                return parent->children[i];
+            }
+            
         }
     }
-    // Hvis ingen match ble funnet i barna, returner NULL
     return NULL;
 }
+
+
 
 static int verified_delete_in_parent( struct inode* parent, struct inode* node )
 {
@@ -290,15 +274,13 @@ struct inode *makeInode(FILE *mft){
             for (int j = 0; j < node->num_children;j++){
                 if (child->id == childrenIDs[j]){
                     //printf(" child id %d ", child->id);
-                   
+                    if (node->children[j] == NULL){
                         node->children[j] = child;
                        
-                    
+                    }
                 }
             }
         }
-        free(childrenIDs);
-        childrenIDs=NULL;
     }
     //om inode er fil
     else if(node->is_directory==0){
@@ -329,7 +311,7 @@ struct inode* load_inodes( char* master_file_table )
     
     struct inode *root = makeInode(mst_file);
     fclose(mst_file);
-   
+
     return root;
 }
 
@@ -449,4 +431,3 @@ void fs_shutdown( struct inode* inode )
     if( inode->blocks )   free( inode->blocks );
     free( inode );
 }
-
