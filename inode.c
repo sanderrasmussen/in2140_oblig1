@@ -206,14 +206,20 @@ static int verified_delete_in_parent( struct inode* parent, struct inode* node )
 int is_node_in_parent( struct inode* parent, struct inode* node )
 {
     /* to be implemented */
-
-
-    return 0;
+    for (int i = 0; i< parent->num_children;i++){
+        if (parent->children[i]==node){
+            return 0;
+        }
+    }
+    return -1;
 }
 
 int delete_file( struct inode* parent, struct inode* node )
 {
     /* to be implemented */
+
+
+
     return 0;
 }
 
@@ -224,7 +230,7 @@ int delete_dir( struct inode* parent, struct inode* node )
 }
 
 struct inode *makeInode(FILE *mft){
-    struct inode *node = malloc(sizeof(struct inode));
+    struct inode *node = calloc(1, sizeof(struct inode));
     
     if (!node){
         printf("ikke nok minne tilgjengelig");
@@ -236,7 +242,7 @@ struct inode *makeInode(FILE *mft){
     int name_length = 0;
     fread(&name_length, sizeof(int), 1, mft);
 
-    node->name = malloc(name_length+1);
+    node->name = malloc(name_length);
 
     if (node->name == NULL){
         printf("ikke nok minne");
@@ -267,20 +273,21 @@ struct inode *makeInode(FILE *mft){
         //derretter leser vi alle barn inn, går ut ifra at alle er i rekkefølge etter forelder
         for (int i = 0; i<node->num_children;i++){
             
-            struct inode* child = malloc(sizeof(struct inode));
-            child = makeInode(mft);
+            struct inode *child = makeInode(mft);
             //loop igennom child id og se om node er child
             
             for (int j = 0; j < node->num_children;j++){
                 if (child->id == childrenIDs[j]){
                     //printf(" child id %d ", child->id);
-                    if (node->children[j] == NULL){
+                  
                         node->children[j] = child;
                        
-                    }
+                    
                 }
             }
         }
+        free(childrenIDs);
+        childrenIDs=NULL;
     }
     //om inode er fil
     else if(node->is_directory==0){
